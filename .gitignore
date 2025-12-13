@@ -5,3 +5,8 @@
 out/
 bin/
 university_data.ser
+# netbeans files
+nbproject/
+build/
+nbbuild/
+dist/
