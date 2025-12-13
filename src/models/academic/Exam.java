@@ -9,11 +9,13 @@ public class Exam implements Serializable {
     private String examId;
     private String subjectName;
     private List<Question> questions;
+    private boolean isPublished; // For Admin Approval
 
     public Exam(String examId, String subjectName) {
         this.examId = examId;
         this.subjectName = subjectName;
         this.questions = new ArrayList<>();
+        this.isPublished = false; // Default: Not published
     }
 
     public void addQuestion(Question q) {
@@ -26,4 +28,7 @@ public class Exam implements Serializable {
 
     public String getSubjectName() { return subjectName; }
     public String getExamId() { return examId; }
+    
+    public boolean isPublished() { return isPublished; }
+    public void setPublished(boolean published) { isPublished = published; }
 }
