@@ -3,3 +3,5 @@
 *.class
 *.xml
 out/
+bin/
+university_data.ser
