@@ -10,3 +10,4 @@ nbproject/
 build/
 nbbuild/
 dist/
+*.ser
