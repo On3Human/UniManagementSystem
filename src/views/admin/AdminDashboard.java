@@ -1,202 +1,131 @@
 package views.admin;
-
 import exception.ValidationException;
 import models.users.*;
-import services.impl.AdminServiceImpl;
-import services.impl.UserServiceImpl;
-import services.interfaces.IAdminService;
-import services.interfaces.IUserService;
-import storage.DataManager;
+import services.impl.*;
 import views.auth.LoginFrame;
-
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.List;
 
 public class AdminDashboard extends JFrame {
-    private Admin currentAdmin;
-    private IAdminService adminService;
-    private IUserService userService;
-    private JTable userTable;
-    private DefaultTableModel tableModel;
+    private Admin admin;
+    private DefaultTableModel model;
+    private JTable table;
+    private AdminServiceImpl adminService = new AdminServiceImpl();
+    private UserServiceImpl userService = new UserServiceImpl();
 
-    public AdminDashboard(Admin admin) {
-        this.currentAdmin = admin;
-        this.adminService = new AdminServiceImpl();
-        this.userService = new UserServiceImpl();
-
-        setTitle("Admin Dashboard - " + admin.getUsername());
-        setSize(800, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    public AdminDashboard(Admin a) {
+        this.admin = a;
+        setTitle("Admin: " + a.getUsername()); setSize(850, 600); setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Manage Users", createManageUsersPanel());
-        tabs.addTab("Assign Subjects", createSubjectPanel());
-        tabs.addTab("Publish Results", createPublishPanel());
-        tabs.addTab("My Profile", createProfilePanel());
-
-        add(tabs, BorderLayout.CENTER);
-        
-        JButton logout = new JButton("Logout");
-        logout.addActionListener(e -> { new LoginFrame(); dispose(); });
-        add(logout, BorderLayout.SOUTH);
+        tabs.addTab("Manage Users", createUserPanel()); // Req 1.2.b
+        tabs.addTab("Assign Subjects", createSubjectPanel()); // Req 1.2.c
+        tabs.addTab("Publish Exams", createPublishPanel()); // Req 1.2.d
+        tabs.addTab("My Profile", createProfilePanel()); // Req User.b
+        add(tabs);
+        JButton out = new JButton("Logout"); out.addActionListener(e -> { new LoginFrame(); dispose(); });
+        add(out, BorderLayout.SOUTH);
     }
 
-    // --- TAB 1: MANAGE USERS (Add, Search, Edit, Delete) ---
-    private JPanel createManageUsersPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
+    private JPanel createUserPanel() {
+        JPanel p = new JPanel(new BorderLayout());
+        model = new DefaultTableModel(new String[]{"ID","User","Role"},0);
+        table = new JTable(model); refreshTable();
+        p.add(new JScrollPane(table), BorderLayout.CENTER);
         
-        // Search Bar
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JTextField searchField = new JTextField(20);
-        JButton searchBtn = new JButton("Search");
-        JButton refreshBtn = new JButton("Reset");
-        topPanel.add(new JLabel("Search:")); topPanel.add(searchField); topPanel.add(searchBtn); topPanel.add(refreshBtn);
-        panel.add(topPanel, BorderLayout.NORTH);
-
-        // Table
-        String[] columns = {"ID", "Username", "Role"};
-        tableModel = new DefaultTableModel(columns, 0);
-        userTable = new JTable(tableModel);
-        refreshUserTable(null);
-        panel.add(new JScrollPane(userTable), BorderLayout.CENTER);
-
-        // CRUD Buttons
-        JPanel bottomPanel = new JPanel();
-        JButton addBtn = new JButton("Add User");
-        JButton editBtn = new JButton("Edit User"); // New Requirement
-        JButton delBtn = new JButton("Delete User");
-        bottomPanel.add(addBtn); bottomPanel.add(editBtn); bottomPanel.add(delBtn);
-        panel.add(bottomPanel, BorderLayout.SOUTH);
-
-        // Actions
-        searchBtn.addActionListener(e -> refreshUserTable(searchField.getText()));
-        refreshBtn.addActionListener(e -> { searchField.setText(""); refreshUserTable(null); });
+        JPanel b = new JPanel();
+        JButton add = new JButton("Add User"), edit = new JButton("Edit User"), del = new JButton("Delete User");
+        b.add(add); b.add(edit); b.add(del); p.add(b, BorderLayout.SOUTH);
         
-        addBtn.addActionListener(e -> showUserForm(null)); // Null means Add Mode
-        editBtn.addActionListener(e -> {
-            int row = userTable.getSelectedRow();
-            if(row == -1) return;
-            String username = (String) tableModel.getValueAt(row, 1);
-            User user = userService.findUserByUsername(username);
-            if(user != null) showUserForm(user); // Pass user for Edit Mode
+        add.addActionListener(e -> showUserDialog(null));
+        
+        // Req: Update User
+        edit.addActionListener(e -> {
+            int r = table.getSelectedRow();
+            if(r != -1) {
+                String u = (String)model.getValueAt(r, 1);
+                showUserDialog(userService.findUserByUsername(u));
+            } else JOptionPane.showMessageDialog(this, "Select a user row first.");
         });
-
-        delBtn.addActionListener(e -> {
-            int row = userTable.getSelectedRow();
-            if(row != -1) {
-                String u = (String) tableModel.getValueAt(row, 1);
-                try { adminService.deleteUser(u); refreshUserTable(null); } 
-                catch (ValidationException ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
-            }
-        });
-
-        return panel;
-    }
-
-    private void refreshUserTable(String query) {
-        tableModel.setRowCount(0);
-        List<User> users = (query == null || query.isEmpty()) ? adminService.listAllUsers() : adminService.searchUsers(query);
-        for (User u : users) tableModel.addRow(new Object[]{u.getId(), u.getUsername(), u.getRole()});
-    }
-
-    private void showUserForm(User existingUser) {
-        JDialog d = new JDialog(this, existingUser == null ? "Add User" : "Edit User", true);
-        d.setSize(300, 300);
-        d.setLayout(new GridLayout(6, 2));
-
-        JTextField idTxt = new JTextField(existingUser != null ? existingUser.getId() : "");
-        JTextField uTxt = new JTextField(existingUser != null ? existingUser.getUsername() : "");
-        JPasswordField pTxt = new JPasswordField(); // Password usually reset, not shown
-        String[] roles = {"STUDENT", "LECTURER", "ADMIN"};
-        JComboBox<String> roleBox = new JComboBox<>(roles);
         
-        if(existingUser != null) {
-            idTxt.setEditable(false); // ID cannot be changed
-            roleBox.setSelectedItem(existingUser.getRole().toString());
-            roleBox.setEnabled(false); // Changing role is complex, simplified here
+        del.addActionListener(e -> {
+            int r = table.getSelectedRow();
+            if(r != -1) try { adminService.deleteUser((String)model.getValueAt(r, 1)); refreshTable(); }
+            catch(Exception ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
+        });
+        return p;
+    }
+    
+    private void showUserDialog(User existing) {
+        JDialog d = new JDialog(this, existing==null?"Add":"Edit", true);
+        d.setSize(300, 350); d.setLayout(new GridLayout(6, 2));
+        JTextField id = new JTextField(), user = new JTextField(), pass = new JTextField();
+        JComboBox<String> role = new JComboBox<>(new String[]{"STUDENT", "LECTURER"});
+        
+        if(existing != null) {
+            id.setText(existing.getId()); id.setEditable(false); // ID cannot be changed
+            user.setText(existing.getUsername()); 
+            role.setSelectedItem(existing.getRole().toString()); role.setEnabled(false);
         }
-
-        d.add(new JLabel("ID:")); d.add(idTxt);
-        d.add(new JLabel("Username:")); d.add(uTxt);
-        d.add(new JLabel("New Password:")); d.add(pTxt);
-        d.add(new JLabel("Role:")); d.add(roleBox);
-
+        
+        d.add(new JLabel("ID:")); d.add(id);
+        d.add(new JLabel("Username:")); d.add(user);
+        d.add(new JLabel("Password:")); d.add(pass);
+        d.add(new JLabel("Role:")); d.add(role);
+        
         JButton save = new JButton("Save");
         save.addActionListener(e -> {
             try {
-                if (existingUser == null) {
-                    // Add Logic
-                    User newUser;
-                    if (roleBox.getSelectedItem().equals("STUDENT")) newUser = new Student(idTxt.getText(), uTxt.getText(), new String(pTxt.getPassword()));
-                    else if (roleBox.getSelectedItem().equals("LECTURER")) newUser = new Lecturer(idTxt.getText(), uTxt.getText(), new String(pTxt.getPassword()));
-                    else newUser = new Admin(idTxt.getText(), uTxt.getText(), new String(pTxt.getPassword()));
-                    userService.registerUser(newUser);
+                if(existing == null) {
+                    User u;
+                    if(role.getSelectedItem().equals("STUDENT")) u = new Student(id.getText(), user.getText(), pass.getText());
+                    else u = new Lecturer(id.getText(), user.getText(), pass.getText());
+                    userService.registerUser(u);
                 } else {
-                    // Update Logic (Requirement 1.2.b)
-                    if (!uTxt.getText().isEmpty()) { 
-                         // Note: In a real app we'd need setters, but DataManager holds references
-                         // so modifying fields is tricky without setters in the Abstract class.
-                         // For this scope, we allow Password reset.
-                         String newPass = new String(pTxt.getPassword());
-                         if(!newPass.isEmpty()) existingUser.setPassword(newPass);
-                         DataManager.getInstance().saveData(); // Persist changes
-                    }
+                    if(!user.getText().isEmpty()) existing.setUsername(user.getText());
+                    if(!pass.getText().isEmpty()) existing.setPassword(pass.getText());
+                    adminService.updateUser(existing);
                 }
-                refreshUserTable(null);
-                d.dispose();
-            } catch (Exception ex) { JOptionPane.showMessageDialog(d, ex.getMessage()); }
+                refreshTable(); d.dispose();
+            } catch(Exception ex) { JOptionPane.showMessageDialog(d, ex.getMessage()); }
         });
-        d.add(save);
-        d.setVisible(true);
+        d.add(save); d.setVisible(true);
     }
-
-    // --- TAB 2: ASSIGN SUBJECTS ---
+    
+    private void refreshTable() {
+        model.setRowCount(0);
+        for(User u : adminService.listAllUsers()) model.addRow(new Object[]{u.getId(), u.getUsername(), u.getRole()});
+    }
+    
     private JPanel createSubjectPanel() {
-        JPanel panel = new JPanel(new GridLayout(4, 2));
-        JTextField uTxt = new JTextField(); JTextField sTxt = new JTextField();
-        JButton btn = new JButton("Assign");
-        panel.add(new JLabel("Username:")); panel.add(uTxt);
-        panel.add(new JLabel("Subject:")); panel.add(sTxt);
-        panel.add(new JLabel("")); panel.add(btn);
-        btn.addActionListener(e -> {
-            try { adminService.assignSubjectToUser(uTxt.getText(), sTxt.getText()); JOptionPane.showMessageDialog(this, "Success"); }
-            catch (ValidationException ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
+        JPanel p = new JPanel(new FlowLayout());
+        JTextField u = new JTextField(10), s = new JTextField(10); JButton b = new JButton("Assign Subject");
+        p.add(new JLabel("Username:")); p.add(u); p.add(new JLabel("Subject:")); p.add(s); p.add(b);
+        b.addActionListener(e -> {
+            try { adminService.assignSubjectToUser(u.getText(), s.getText()); JOptionPane.showMessageDialog(this, "Assigned"); }
+            catch(Exception ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
         });
-        return panel;
+        return p;
     }
-
-    // --- TAB 3: PUBLISH ---
+    
     private JPanel createPublishPanel() {
-        JPanel panel = new JPanel(new FlowLayout());
-        JTextField idTxt = new JTextField(15);
-        JButton btn = new JButton("Publish Exam");
-        panel.add(new JLabel("Exam ID:")); panel.add(idTxt); panel.add(btn);
-        btn.addActionListener(e -> {
-            try { adminService.publishExamResults(idTxt.getText()); JOptionPane.showMessageDialog(this, "Published!"); }
-            catch (ValidationException ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
+        JPanel p = new JPanel(new FlowLayout());
+        JTextField id = new JTextField(10); JButton b = new JButton("Publish Exam ID");
+        p.add(new JLabel("Exam ID:")); p.add(id); p.add(b);
+        b.addActionListener(e -> {
+            try { adminService.publishExamResults(id.getText()); JOptionPane.showMessageDialog(this, "Published"); }
+            catch(Exception ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
         });
-        return panel;
+        return p;
     }
-
-    // --- TAB 4: PROFILE (Requirement 1.2.a - Alter Credentials) ---
+    
     private JPanel createProfilePanel() {
-        JPanel panel = new JPanel(new GridLayout(3, 2));
-        JPasswordField pass = new JPasswordField();
-        JButton updateBtn = new JButton("Update Password");
-        panel.add(new JLabel("New Password:")); panel.add(pass);
-        panel.add(new JLabel("")); panel.add(updateBtn);
-        
-        updateBtn.addActionListener(e -> {
-            String p = new String(pass.getPassword());
-            if(!p.isEmpty()) {
-                currentAdmin.setPassword(p);
-                DataManager.getInstance().saveData();
-                JOptionPane.showMessageDialog(this, "Credentials Updated");
-            }
+        JPanel p = new JPanel(); JButton b = new JButton("Change My Password");
+        b.addActionListener(e -> {
+            String s = JOptionPane.showInputDialog("New Password:");
+            if(s != null) { admin.setPassword(s); try { adminService.updateUser(admin); JOptionPane.showMessageDialog(this, "Saved"); } catch(Exception ex){} }
         });
-        return panel;
+        p.add(b); return p;
     }
 }

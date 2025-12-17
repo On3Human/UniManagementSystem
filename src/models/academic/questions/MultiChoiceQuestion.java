@@ -1,19 +1,9 @@
 package models.academic.questions;
-
 public class MultiChoiceQuestion extends Question {
     private String correctAnswer; 
     private String[] options;
-
-    public MultiChoiceQuestion(String text, double score, String correct, String[] options) {
-        super(text, score);
-        this.correctAnswer = correct;
-        this.options = options;
-    }
-
-    @Override
-    public boolean checkAnswer(String studentAnswer) {
-        return correctAnswer.equalsIgnoreCase(studentAnswer.trim());
-    }
-    
+    public MultiChoiceQuestion(String t, double s, String c, String[] o) { super(t, s); correctAnswer=c; options=o; }
+    @Override public boolean checkAnswer(String a) { return correctAnswer.equalsIgnoreCase(a.trim()); }
+    public String getCorrectAnswer() { return correctAnswer; }
     public String[] getOptions() { return options; }
 }

@@ -1,20 +1,12 @@
 package services.interfaces;
-
 import exception.ValidationException;
-import models.academic.Exam;
 import models.users.User;
 import java.util.List;
-
 public interface IAdminService {
-    // b) User Management
-    void deleteUser(String username) throws ValidationException;
+    void deleteUser(String u) throws ValidationException;
     List<User> listAllUsers();
-    List<User> searchUsers(String query);
-    void updateUser(User user) throws ValidationException;
-
-    // c) Subject Management
-    void assignSubjectToUser(String username, String subjectName) throws ValidationException;
-
-    // d) Grade Approval
-    void publishExamResults(String examId) throws ValidationException;
+    List<User> searchUsers(String q);
+    void updateUser(User u) throws ValidationException; // Req: Update
+    void assignSubjectToUser(String u, String s) throws ValidationException;
+    void publishExamResults(String eid) throws ValidationException;
 }

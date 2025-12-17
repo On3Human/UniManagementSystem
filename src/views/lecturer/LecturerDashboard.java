@@ -1,152 +1,137 @@
 package views.lecturer;
-
 import models.academic.Exam;
 import models.academic.questions.*;
-import models.users.Lecturer;
-import models.users.Student;
-import models.users.User;
+import models.users.*;
 import services.impl.LecturerServiceImpl;
-import services.interfaces.ILecturerService;
 import storage.DataManager;
 import views.auth.LoginFrame;
-
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class LecturerDashboard extends JFrame {
-    private Lecturer currentLecturer;
-    private ILecturerService lecturerService;
+    private Lecturer lecturer;
     private Exam tempExam;
-    private DefaultListModel<String> questionListModel;
+    private DefaultListModel<String> listModel;
+    private LecturerServiceImpl service = new LecturerServiceImpl();
 
-    public LecturerDashboard(Lecturer lecturer) {
-        this.currentLecturer = lecturer;
-        this.lecturerService = new LecturerServiceImpl();
-
-        setTitle("Lecturer Dashboard - " + lecturer.getUsername());
-        setSize(700, 500);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
-
+    public LecturerDashboard(Lecturer l) {
+        this.lecturer = l;
+        setTitle("Lecturer: " + l.getUsername()); setSize(850, 600);
+        setDefaultCloseOperation(EXIT_ON_CLOSE); setLocationRelativeTo(null);
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Create Exam", createExamPanel());
-        tabs.addTab("Class Reports", createReportPanel()); // Requirement: Reporting Tools
+        tabs.addTab("Manage Exams", createExamPanel());
+        tabs.addTab("Class Reports", createReportPanel()); // Req Lecturer.c
         tabs.addTab("My Profile", createProfilePanel());
-
-        add(tabs, BorderLayout.CENTER);
-        JButton logout = new JButton("Logout");
-        logout.addActionListener(e -> { new LoginFrame(); dispose(); });
-        add(logout, BorderLayout.SOUTH);
+        add(tabs);
+        JButton out = new JButton("Logout"); out.addActionListener(e -> { new LoginFrame(); dispose(); });
+        add(out, BorderLayout.SOUTH);
     }
 
     private JPanel createExamPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        
-        // Header (Duration added)
-        JPanel header = new JPanel(new GridLayout(4, 2));
-        JTextField idTxt = new JTextField();
-        JTextField subTxt = new JTextField();
-        JTextField durTxt = new JTextField(); // Requirement: Specify duration
-        JButton startBtn = new JButton("Initialize Exam");
-        
-        header.add(new JLabel("Exam ID:")); header.add(idTxt);
-        header.add(new JLabel("Subject:")); header.add(subTxt);
-        header.add(new JLabel("Duration (mins):")); header.add(durTxt);
-        header.add(new JLabel("")); header.add(startBtn);
-        panel.add(header, BorderLayout.NORTH);
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel(new GridLayout(4, 2));
+        JTextField id = new JTextField(), sub = new JTextField(), dur = new JTextField();
+        JButton init = new JButton("Init Exam");
+        top.add(new JLabel("ID:")); top.add(id); top.add(new JLabel("Subject:")); top.add(sub);
+        top.add(new JLabel("Duration (mins):")); top.add(dur); top.add(init);
+        p.add(top, BorderLayout.NORTH);
 
-        // List
-        questionListModel = new DefaultListModel<>();
-        panel.add(new JScrollPane(new JList<>(questionListModel)), BorderLayout.CENTER);
+        listModel = new DefaultListModel<>();
+        p.add(new JScrollPane(new JList<>(listModel)), BorderLayout.CENTER);
 
-        // Controls
-        JPanel bottom = new JPanel();
-        JButton addMcq = new JButton("Add MCQ");
-        JButton addTf = new JButton("Add True/False");
-        JButton saveBtn = new JButton("Save Exam");
-        addMcq.setEnabled(false); addTf.setEnabled(false); saveBtn.setEnabled(false);
-        bottom.add(addMcq); bottom.add(addTf); bottom.add(saveBtn);
-        panel.add(bottom, BorderLayout.SOUTH);
+        JPanel bot = new JPanel();
+        JButton mcq = new JButton("Add MCQ"), tf = new JButton("Add T/F"), shrt = new JButton("Add Short"), save = new JButton("Save Exam"), del = new JButton("Delete Exam");
+        mcq.setEnabled(false); tf.setEnabled(false); shrt.setEnabled(false); save.setEnabled(false);
+        bot.add(mcq); bot.add(tf); bot.add(shrt); bot.add(save); bot.add(del);
+        p.add(bot, BorderLayout.SOUTH);
 
-        // Logic
-        startBtn.addActionListener(e -> {
-            tempExam = new Exam(idTxt.getText(), subTxt.getText());
-            // Store duration logic here if Exam model supported it explicitly, for now strictly UI flow
-            addMcq.setEnabled(true); addTf.setEnabled(true); saveBtn.setEnabled(true);
-            questionListModel.clear();
+        init.addActionListener(e -> {
+            if(id.getText().isEmpty() || sub.getText().isEmpty()) return;
+            tempExam = new Exam(id.getText(), sub.getText(), dur.getText());
+            listModel.clear();
+            mcq.setEnabled(true); tf.setEnabled(true); shrt.setEnabled(true); save.setEnabled(true);
         });
 
-        addMcq.addActionListener(e -> showAddMCQ());
-        addTf.addActionListener(e -> showAddTF());
-
-        saveBtn.addActionListener(e -> {
-            lecturerService.createExam(currentLecturer, tempExam);
-            JOptionPane.showMessageDialog(this, "Exam Created!");
-            addMcq.setEnabled(false); addTf.setEnabled(false); saveBtn.setEnabled(false);
-            tempExam = null;
+        // Add Question Logic
+        mcq.addActionListener(e -> {
+             JTextField q=new JTextField(), o1=new JTextField(), o2=new JTextField(), c=new JTextField();
+             Object[] msg = {"Question:",q,"Option A:",o1,"Option B:",o2,"Correct (A/B):",c};
+             if(JOptionPane.showConfirmDialog(this,msg,"MCQ",2)==0) {
+                 tempExam.addQuestion(new MultiChoiceQuestion(q.getText(), 5, c.getText(), new String[]{o1.getText(), o2.getText()}));
+                 listModel.addElement("MCQ: "+q.getText());
+             }
         });
-
-        return panel;
+        tf.addActionListener(e -> {
+             JTextField q=new JTextField(); JComboBox<String> c=new JComboBox<>(new String[]{"true","false"});
+             Object[] msg = {"Stmt:",q,"Correct:",c};
+             if(JOptionPane.showConfirmDialog(this,msg,"T/F",2)==0) {
+                 tempExam.addQuestion(new TrueFalseQuestion(q.getText(), 5, Boolean.parseBoolean((String)c.getSelectedItem())));
+                 listModel.addElement("T/F: "+q.getText());
+             }
+        });
+        shrt.addActionListener(e -> {
+             JTextField q=new JTextField(), c=new JTextField();
+             Object[] msg = {"Question:",q,"Answer:",c};
+             if(JOptionPane.showConfirmDialog(this,msg,"Short",2)==0) {
+                 tempExam.addQuestion(new ShortAnswerQuestion(q.getText(), 5, c.getText()));
+                 listModel.addElement("Short: "+q.getText());
+             }
+        });
+        
+        save.addActionListener(e -> {
+            service.createExam(lecturer, tempExam); JOptionPane.showMessageDialog(this, "Exam Saved");
+            mcq.setEnabled(false); tf.setEnabled(false); shrt.setEnabled(false); save.setEnabled(false);
+            id.setText(""); sub.setText(""); dur.setText(""); listModel.clear();
+        });
+        
+        del.addActionListener(e -> {
+            String s = JOptionPane.showInputDialog("Exam ID to Delete:");
+            if(s != null) { service.deleteExam(s); JOptionPane.showMessageDialog(this, "Deleted"); }
+        });
+        return p;
     }
 
-    private void showAddMCQ() {
-        // Simple Input for MCQ
-        String q = JOptionPane.showInputDialog("Question Text:");
-        String op1 = JOptionPane.showInputDialog("Option A:");
-        String op2 = JOptionPane.showInputDialog("Option B:");
-        String cor = JOptionPane.showInputDialog("Correct Option (A/B):");
-        if(q != null) {
-            tempExam.addQuestion(new MultiChoiceQuestion(q, 5.0, cor, new String[]{op1, op2}));
-            questionListModel.addElement("MCQ: " + q);
-        }
-    }
-
-    private void showAddTF() {
-        String q = JOptionPane.showInputDialog("Statement:");
-        int res = JOptionPane.showConfirmDialog(this, "Is it True?", "Answer", JOptionPane.YES_NO_OPTION);
-        if(q != null) {
-            tempExam.addQuestion(new TrueFalseQuestion(q, 5.0, res == JOptionPane.YES_OPTION));
-            questionListModel.addElement("TF: " + q);
-        }
-    }
-
-    // --- TAB 2: REPORTS (Requirement: Class Reports) ---
     private JPanel createReportPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JPanel top = new JPanel();
-        JTextField examIdTxt = new JTextField(10);
-        JButton genBtn = new JButton("Generate Report");
-        top.add(new JLabel("Exam ID:")); top.add(examIdTxt); top.add(genBtn);
-        panel.add(top, BorderLayout.NORTH);
-
-        DefaultTableModel model = new DefaultTableModel(new String[]{"Student", "Score"}, 0);
-        panel.add(new JScrollPane(new JTable(model)), BorderLayout.CENTER);
-
-        genBtn.addActionListener(e -> {
-            model.setRowCount(0);
-            String targetId = examIdTxt.getText();
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel(); JTextField id = new JTextField(10); JButton g = new JButton("Generate Report");
+        top.add(new JLabel("Exam ID:")); top.add(id); top.add(g); p.add(top, BorderLayout.NORTH);
+        
+        DefaultTableModel m = new DefaultTableModel(new String[]{"Student", "Score"}, 0);
+        p.add(new JScrollPane(new JTable(m)), BorderLayout.CENTER);
+        
+        JLabel stats = new JLabel("Stats: "); p.add(stats, BorderLayout.SOUTH);
+        
+        g.addActionListener(e -> {
+            m.setRowCount(0);
+            List<Double> scores = new ArrayList<>();
             for(User u : DataManager.getInstance().getUsers().values()) {
                 if(u instanceof Student) {
-                    Student s = (Student) u;
-                    if(s.hasTakenExam(targetId)) {
-                        model.addRow(new Object[]{s.getUsername(), s.getExamGrades().get(targetId)});
+                    Student s = (Student)u;
+                    if(s.hasTakenExam(id.getText())) {
+                        double score = s.getExamGrades().get(id.getText());
+                        m.addRow(new Object[]{s.getUsername(), score});
+                        scores.add(score);
                     }
                 }
             }
+            if(scores.size() > 0) {
+                double sum = 0, max = -1, min = 9999;
+                for(double d : scores) { sum+=d; if(d>max)max=d; if(d<min)min=d; }
+                stats.setText(String.format("Avg: %.2f | Max: %.1f | Min: %.1f", sum/scores.size(), max, min));
+            } else stats.setText("No data found");
         });
-        return panel;
+        return p;
     }
 
     private JPanel createProfilePanel() {
-        JPanel panel = new JPanel(new FlowLayout());
-        JButton btn = new JButton("Change Password");
-        btn.addActionListener(e -> {
-            String p = JOptionPane.showInputDialog("New Password:");
-            if(p != null) { currentLecturer.setPassword(p); DataManager.getInstance().saveData(); }
+        JPanel p = new JPanel(); JButton b = new JButton("Change Password");
+        b.addActionListener(e -> {
+            String s = JOptionPane.showInputDialog("New Pass:");
+            if(s != null) { lecturer.setPassword(s); DataManager.getInstance().saveData(); }
         });
-        panel.add(btn);
-        return panel;
+        p.add(b); return p;
     }
 }

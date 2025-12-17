@@ -1,71 +1,48 @@
 package services.impl;
-
 import exception.ValidationException;
 import models.academic.Exam;
 import models.academic.questions.Question;
 import models.users.Student;
 import services.interfaces.IStudentService;
 import storage.DataManager;
-
 import java.util.Map;
 
 public class StudentServiceImpl implements IStudentService {
-    private DataManager dataManager = DataManager.getInstance();
-
-    @Override
-    public double takeExam(Student student, Exam exam, Map<Integer, String> answers) throws ValidationException {
-        // 1. Validation: Is Student enrolled in this Subject?
-        if (!student.getEnrolledSubjects().contains(exam.getSubjectName())) {
-            throw new ValidationException("You are not enrolled in " + exam.getSubjectName());
+    private DataManager db = DataManager.getInstance();
+    
+    public double takeExam(Student s, Exam e, Map<Integer, String> ans) throws ValidationException {
+        // Req 3.4.a: Access only if registered
+        boolean enrolled = false;
+        for(String sub : s.getEnrolledSubjects()) {
+            if(sub.trim().equalsIgnoreCase(e.getSubjectName().trim())) { enrolled = true; break; }
         }
-
-        // 2. Validation: Has Student already taken this exam?
-        if (student.hasTakenExam(exam.getExamId())) {
-            throw new ValidationException("You have already taken this exam.");
-        }
+        if(!enrolled) throw new ValidationException("You are not enrolled in Subject: " + e.getSubjectName());
         
-        // 3. Validation: Is the exam published?
-        // Note: Usually students shouldn't see unpublished exams, but this is a safety check.
-        if (!exam.isPublished()) {
-            throw new ValidationException("This exam is not yet published.");
-        }
-
-        // 4. Automatic Grading Logic
-        double totalScore = 0;
-        int questionIndex = 0;
+        // Req 3.4.b: One-time Entry
+        if(s.hasTakenExam(e.getExamId())) throw new ValidationException("You have already taken this exam.");
         
-        for (Question q : exam.getQuestions()) {
-            // answers map uses Index (0, 1, 2) as key to match question order
-            String studentAnswer = answers.get(questionIndex);
-            
-            if (studentAnswer != null && q.checkAnswer(studentAnswer)) {
-                totalScore += q.getScore();
+        // Req 1.2.d: Access only if Published
+        if(!e.isPublished()) throw new ValidationException("This exam is not published yet.");
+
+        // Req Lecturer.b: Automatic Grading
+        double score = 0;
+        int idx = 0;
+        for(Question q : e.getQuestions()) {
+            String studentAns = ans.get(idx++);
+            if(studentAns != null && q.checkAnswer(studentAns)) {
+                score += q.getScore();
             }
-            questionIndex++;
         }
-
-        // 5. Save Result
-        student.recordGrade(exam.getExamId(), totalScore);
-        dataManager.saveData();
-
-        return totalScore;
+        s.recordGrade(e.getExamId(), score);
+        db.saveData();
+        return score;
     }
-
-    @Override
-    public void requestReCorrection(Student student, String examId, String reason) throws ValidationException {
-        if (!student.hasTakenExam(examId)) {
-            throw new ValidationException("Cannot request re-correction for an exam you haven't taken.");
-        }
-        
-        student.addReCorrectionRequest(examId, reason);
-        dataManager.saveData();
+    
+    public void requestReCorrection(Student s, String eid, String r) throws ValidationException {
+        s.addReCorrectionRequest(eid, r); db.saveData();
     }
-
-    @Override
-    public void submitFeedback(Student student, Exam exam, String feedback) {
-        if (feedback != null && !feedback.isEmpty()) {
-            exam.addFeedback(student.getUsername() + ": " + feedback);
-            dataManager.saveData();
-        }
+    
+    public void submitFeedback(Student s, Exam e, String f) {
+        e.addFeedback(s.getUsername() + ": " + f); db.saveData();
     }
 }

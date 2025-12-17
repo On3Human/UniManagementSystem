@@ -1,70 +1,38 @@
 package views.student;
-
-import exception.ValidationException;
 import models.academic.Exam;
 import models.academic.questions.Question;
 import models.users.Student;
 import services.impl.StudentServiceImpl;
-import services.interfaces.IStudentService;
-
 import javax.swing.*;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
 
 public class TakeExamFrame extends JFrame {
-    private Student student;
-    private Exam exam;
-    private StudentDashboard parent;
-    private Map<Integer, JTextField> answerFields;
-
-    public TakeExamFrame(Student student, Exam exam, StudentDashboard parent) {
-        this.student = student;
-        this.exam = exam;
-        this.parent = parent;
-        this.answerFields = new HashMap<>();
-
-        setTitle("Exam: " + exam.getSubjectName());
-        setSize(500, 600);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    private Map<Integer, JTextField> fields = new HashMap<>();
+    public TakeExamFrame(Student s, Exam e, StudentDashboard p) {
+        setTitle("Taking: " + e.getSubjectName()); setSize(500, 600); setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
+        JPanel m = new JPanel(); m.setLayout(new BoxLayout(m, BoxLayout.Y_AXIS));
         
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-
-        int index = 0;
-        for (Question q : exam.getQuestions()) {
-            JPanel qPanel = new JPanel(new GridLayout(2, 1));
-            qPanel.setBorder(BorderFactory.createTitledBorder("Q" + (index + 1) + " (" + q.getScore() + " pts)"));
-            qPanel.add(new JLabel(q.getQuestionText()));
-            JTextField ansField = new JTextField();
-            qPanel.add(ansField);
-            mainPanel.add(qPanel);
-            answerFields.put(index, ansField);
-            index++;
+        int i = 0;
+        for(Question q : e.getQuestions()) {
+            JPanel pn = new JPanel(new GridLayout(2, 1));
+            pn.setBorder(BorderFactory.createTitledBorder("Q" + (i+1) + " (" + q.getScore() + " pts)"));
+            pn.add(new JLabel(q.getQuestionText()));
+            JTextField tf = new JTextField(); pn.add(tf);
+            fields.put(i++, tf); m.add(pn);
         }
-
-        JButton submitBtn = new JButton("Submit Exam");
-        submitBtn.addActionListener(e -> submitExam());
-
-        add(new JScrollPane(mainPanel), BorderLayout.CENTER);
-        add(submitBtn, BorderLayout.SOUTH);
-    }
-
-    private void submitExam() {
-        Map<Integer, String> answers = new HashMap<>();
-        for (Map.Entry<Integer, JTextField> entry : answerFields.entrySet()) {
-            answers.put(entry.getKey(), entry.getValue().getText());
-        }
-
-        IStudentService service = new StudentServiceImpl();
-        try {
-            double score = service.takeExam(student, exam, answers);
-            JOptionPane.showMessageDialog(this, "Submitted! Score: " + score);
-            parent.refresh();
-            this.dispose();
-        } catch (ValidationException ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage());
-        }
+        JButton b = new JButton("Submit");
+        b.addActionListener(ev -> {
+            Map<Integer, String> ans = new HashMap<>();
+            for(Map.Entry<Integer, JTextField> en : fields.entrySet()) ans.put(en.getKey(), en.getValue().getText());
+            try {
+                double sc = new StudentServiceImpl().takeExam(s, e, ans);
+                JOptionPane.showMessageDialog(this, "Submitted! Score: " + sc);
+                p.refresh(); dispose();
+            } catch(Exception ex) { JOptionPane.showMessageDialog(this, ex.getMessage()); }
+        });
+        add(new JScrollPane(m), BorderLayout.CENTER); add(b, BorderLayout.SOUTH);
     }
 }
