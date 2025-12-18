@@ -144,7 +144,6 @@ public class LecturerDashboard extends JFrame {
             } else stats.setText("No data found");
         });
 
-        // Feedback Action (THE FIX)
         f.addActionListener(e -> {
             String examId = id.getText();
             Exam target = null;
@@ -156,18 +155,10 @@ public class LecturerDashboard extends JFrame {
                 JOptionPane.showMessageDialog(this, "Exam not found");
                 return;
             }
-            
-            // Access private feedback via reflection or just use string construction if getter missing
-            // Since we defined addFeedback in Exam.java, let's assume we can access it directly or via helper
-            // Note: In UMS_END/models/academic/Exam.java, we didn't add a getter for feedback list.
-            // Let's rely on the fact that we can just show a message if we modify Exam.java or...
-            // better yet, let's just make sure we update Exam.java to expose it cleanly.
+     
             
             StringBuilder sb = new StringBuilder("Student Feedback for " + examId + ":\n\n");
-            // We need to add the getter to Exam.java to make this work perfectly.
-            // But since I am overwriting files, I will fix Exam.java right now below this block.
-            
-            // Assuming getter exists now:
+      
             List<String> feedbacks = target.getFeedbackList(); 
             if(feedbacks.isEmpty()) sb.append("No feedback submitted yet.");
             else for(String s : feedbacks) sb.append("- ").append(s).append("\n");
