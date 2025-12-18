@@ -14,35 +14,40 @@ public class AdminServiceImpl implements IAdminService {
         if(!db.getUsers().containsKey(u)) throw new ValidationException("User not found");
         db.getUsers().remove(u); db.saveData();
     }
-    
     public List<User> listAllUsers() { return new ArrayList<>(db.getUsers().values()); }
-    
     public List<User> searchUsers(String q) {
-        return db.getUsers().values().stream()
-                .filter(u -> u.getUsername().toLowerCase().contains(q.toLowerCase()))
-                .collect(Collectors.toList());
+        return db.getUsers().values().stream().filter(u->u.getUsername().toLowerCase().contains(q.toLowerCase())).collect(Collectors.toList());
     }
-    
     public void updateUser(User u) throws ValidationException {
-        if(!db.getUsers().containsKey(u.getUsername())) throw new ValidationException("User not found in DB");
-        db.saveData(); // Save changes made to reference
+        if(!db.getUsers().containsKey(u.getUsername())) throw new ValidationException("User not found");
+        db.saveData();
     }
-    
     public void assignSubjectToUser(String u, String s) throws ValidationException {
         User user = db.getUsers().get(u);
-        if(user == null) throw new ValidationException("User not found");
-        
-        boolean changed = false;
-        if(user instanceof Student) { ((Student)user).enrollSubject(s.trim()); changed = true; }
-        else if(user instanceof Lecturer) { ((Lecturer)user).assignSubject(s.trim()); changed = true; }
-        else throw new ValidationException("Invalid role for subjects");
-        
-        if(changed) db.saveData();
+        if(user==null) throw new ValidationException("User not found");
+        if(user instanceof Student) ((Student)user).enrollSubject(s.trim());
+        else if(user instanceof Lecturer) ((Lecturer)user).assignSubject(s.trim());
+        else throw new ValidationException("Invalid Role");
+        db.saveData();
     }
     
+    // 1. Publish for Access (Students can TAKE it)
+    public void publishExamAccess(String eid) throws ValidationException {
+        Exam e = findExam(eid);
+        e.setPublished(true); 
+        db.saveData();
+    }
+    
+    // 2. Publish for Results (Students can SEE grades)
     public void publishExamResults(String eid) throws ValidationException {
+        Exam e = findExam(eid);
+        e.setResultsPublished(true); 
+        db.saveData();
+    }
+    
+    private Exam findExam(String eid) throws ValidationException {
         Exam e = db.getAllExams().stream().filter(x -> x.getExamId().equals(eid)).findFirst().orElse(null);
         if(e == null) throw new ValidationException("Exam ID not found");
-        e.setPublished(true); db.saveData();
+        return e;
     }
 }

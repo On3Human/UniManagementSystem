@@ -22,19 +22,17 @@ public class StudentDashboard extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE); setLocationRelativeTo(null);
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Available Exams", createAvailablePanel());
-        tabs.addTab("History", createHistoryPanel()); // Req 3.4.c
+        tabs.addTab("History", createHistoryPanel());
         tabs.addTab("Profile", createProfilePanel());
         add(tabs, BorderLayout.CENTER);
         JButton out = new JButton("Logout"); out.addActionListener(e -> { new LoginFrame(); dispose(); });
         add(out, BorderLayout.SOUTH);
-        
-        // Fix: Call refresh at end to prevent NULL pointer on init
         refresh();
     }
 
     private JPanel createAvailablePanel() {
         JPanel p = new JPanel(new BorderLayout());
-        p.add(new JLabel("Enrolled Subjects: " + student.getEnrolledSubjects(), SwingConstants.CENTER), BorderLayout.NORTH);
+        p.add(new JLabel("Enrolled: " + student.getEnrolledSubjects(), SwingConstants.CENTER), BorderLayout.NORTH);
         examModel = new DefaultTableModel(new String[]{"ID","Subject"}, 0);
         JTable t = new JTable(examModel);
         p.add(new JScrollPane(t), BorderLayout.CENTER);
@@ -57,7 +55,7 @@ public class StudentDashboard extends JFrame {
 
     private JPanel createHistoryPanel() {
         JPanel p = new JPanel(new BorderLayout());
-        historyModel = new DefaultTableModel(new String[]{"ID","Score"}, 0);
+        historyModel = new DefaultTableModel(new String[]{"ID","Score", "Status"}, 0);
         JTable t = new JTable(historyModel);
         p.add(new JScrollPane(t), BorderLayout.CENTER);
         
@@ -68,6 +66,11 @@ public class StudentDashboard extends JFrame {
         v.addActionListener(e -> {
             int r = t.getSelectedRow();
             if(r != -1) {
+                String status = (String)historyModel.getValueAt(r, 2);
+                if(status.equals("Pending Approval")) {
+                    JOptionPane.showMessageDialog(this, "Results not yet released by Admin.");
+                    return;
+                }
                 Exam ex = findExam((String)historyModel.getValueAt(r, 0));
                 if(ex != null) new ViewExamDetailsFrame(ex).setVisible(true);
             }
@@ -76,8 +79,7 @@ public class StudentDashboard extends JFrame {
             int r = t.getSelectedRow();
             if(r != -1) {
                 String s = JOptionPane.showInputDialog("Reason:");
-                if(s != null) try { service.requestReCorrection(student, (String)historyModel.getValueAt(r, 0), s); JOptionPane.showMessageDialog(this, "Sent"); }
-                catch(Exception ex) {}
+                if(s != null) try{ service.requestReCorrection(student, (String)historyModel.getValueAt(r, 0), s); JOptionPane.showMessageDialog(this, "Sent"); }catch(Exception ex){}
             }
         });
         fb.addActionListener(e -> {
@@ -106,16 +108,20 @@ public class StudentDashboard extends JFrame {
         
         for(Exam e : DataManager.getInstance().getAllExams()) {
             boolean match = false;
-            // Case insensitive subject check
             for(String s : subs) if(s.trim().equalsIgnoreCase(e.getSubjectName().trim())) match = true;
-            
-            // Logic: Published AND Subject Match AND Not Taken
             if(e.isPublished() && match && !student.hasTakenExam(e.getExamId())) {
                 examModel.addRow(new Object[]{e.getExamId(), e.getSubjectName()});
             }
         }
         for(Map.Entry<String, Double> en : student.getExamGrades().entrySet()) {
-            historyModel.addRow(new Object[]{en.getKey(), en.getValue()});
+            Exam ex = findExam(en.getKey());
+            if(ex != null) {
+                if(ex.areResultsPublished()) {
+                    historyModel.addRow(new Object[]{en.getKey(), en.getValue(), "Released"});
+                } else {
+                    historyModel.addRow(new Object[]{en.getKey(), "Hidden", "Pending Approval"});
+                }
+            }
         }
     }
     

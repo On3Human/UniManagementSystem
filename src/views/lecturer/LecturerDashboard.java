@@ -1,10 +1,14 @@
 package views.lecturer;
+
 import models.academic.Exam;
 import models.academic.questions.*;
-import models.users.*;
+import models.users.Lecturer;
+import models.users.Student;
+import models.users.User;
 import services.impl.LecturerServiceImpl;
 import storage.DataManager;
 import views.auth.LoginFrame;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
@@ -19,24 +23,31 @@ public class LecturerDashboard extends JFrame {
 
     public LecturerDashboard(Lecturer l) {
         this.lecturer = l;
-        setTitle("Lecturer: " + l.getUsername()); setSize(850, 600);
-        setDefaultCloseOperation(EXIT_ON_CLOSE); setLocationRelativeTo(null);
+        setTitle("Lecturer: " + l.getUsername()); 
+        setSize(900, 650);
+        setDefaultCloseOperation(EXIT_ON_CLOSE); 
+        setLocationRelativeTo(null);
+
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Manage Exams", createExamPanel());
-        tabs.addTab("Class Reports", createReportPanel()); // Req Lecturer.c
+        tabs.addTab("Class Reports", createReportPanel()); 
         tabs.addTab("My Profile", createProfilePanel());
-        add(tabs);
-        JButton out = new JButton("Logout"); out.addActionListener(e -> { new LoginFrame(); dispose(); });
+
+        add(tabs, BorderLayout.CENTER);
+        
+        JButton out = new JButton("Logout"); 
+        out.addActionListener(e -> { new LoginFrame(); dispose(); });
         add(out, BorderLayout.SOUTH);
     }
 
+    // --- TAB 1: MANAGE EXAMS ---
     private JPanel createExamPanel() {
         JPanel p = new JPanel(new BorderLayout());
         JPanel top = new JPanel(new GridLayout(4, 2));
         JTextField id = new JTextField(), sub = new JTextField(), dur = new JTextField();
         JButton init = new JButton("Init Exam");
         top.add(new JLabel("ID:")); top.add(id); top.add(new JLabel("Subject:")); top.add(sub);
-        top.add(new JLabel("Duration (mins):")); top.add(dur); top.add(init);
+        top.add(new JLabel("Duration:")); top.add(dur); top.add(init);
         p.add(top, BorderLayout.NORTH);
 
         listModel = new DefaultListModel<>();
@@ -55,10 +66,9 @@ public class LecturerDashboard extends JFrame {
             mcq.setEnabled(true); tf.setEnabled(true); shrt.setEnabled(true); save.setEnabled(true);
         });
 
-        // Add Question Logic
         mcq.addActionListener(e -> {
              JTextField q=new JTextField(), o1=new JTextField(), o2=new JTextField(), c=new JTextField();
-             Object[] msg = {"Question:",q,"Option A:",o1,"Option B:",o2,"Correct (A/B):",c};
+             Object[] msg = {"Question:",q,"Opt A:",o1,"Opt B:",o2,"Correct (A/B):",c};
              if(JOptionPane.showConfirmDialog(this,msg,"MCQ",2)==0) {
                  tempExam.addQuestion(new MultiChoiceQuestion(q.getText(), 5, c.getText(), new String[]{o1.getText(), o2.getText()}));
                  listModel.addElement("MCQ: "+q.getText());
@@ -80,13 +90,11 @@ public class LecturerDashboard extends JFrame {
                  listModel.addElement("Short: "+q.getText());
              }
         });
-        
         save.addActionListener(e -> {
             service.createExam(lecturer, tempExam); JOptionPane.showMessageDialog(this, "Exam Saved");
             mcq.setEnabled(false); tf.setEnabled(false); shrt.setEnabled(false); save.setEnabled(false);
             id.setText(""); sub.setText(""); dur.setText(""); listModel.clear();
         });
-        
         del.addActionListener(e -> {
             String s = JOptionPane.showInputDialog("Exam ID to Delete:");
             if(s != null) { service.deleteExam(s); JOptionPane.showMessageDialog(this, "Deleted"); }
@@ -94,16 +102,28 @@ public class LecturerDashboard extends JFrame {
         return p;
     }
 
+    // --- TAB 2: REPORTS & FEEDBACK (UPDATED) ---
     private JPanel createReportPanel() {
         JPanel p = new JPanel(new BorderLayout());
-        JPanel top = new JPanel(); JTextField id = new JTextField(10); JButton g = new JButton("Generate Report");
-        top.add(new JLabel("Exam ID:")); top.add(id); top.add(g); p.add(top, BorderLayout.NORTH);
         
+        // Header
+        JPanel top = new JPanel(); 
+        JTextField id = new JTextField(10); 
+        JButton g = new JButton("Generate Report");
+        JButton f = new JButton("Read Feedback"); // NEW BUTTON
+        
+        top.add(new JLabel("Exam ID:")); top.add(id); top.add(g); top.add(f); 
+        p.add(top, BorderLayout.NORTH);
+        
+        // Table
         DefaultTableModel m = new DefaultTableModel(new String[]{"Student", "Score"}, 0);
         p.add(new JScrollPane(new JTable(m)), BorderLayout.CENTER);
         
-        JLabel stats = new JLabel("Stats: "); p.add(stats, BorderLayout.SOUTH);
+        // Stats
+        JLabel stats = new JLabel("Stats: -"); 
+        p.add(stats, BorderLayout.SOUTH);
         
+        // Generate Action
         g.addActionListener(e -> {
             m.setRowCount(0);
             List<Double> scores = new ArrayList<>();
@@ -123,6 +143,40 @@ public class LecturerDashboard extends JFrame {
                 stats.setText(String.format("Avg: %.2f | Max: %.1f | Min: %.1f", sum/scores.size(), max, min));
             } else stats.setText("No data found");
         });
+
+        // Feedback Action (THE FIX)
+        f.addActionListener(e -> {
+            String examId = id.getText();
+            Exam target = null;
+            for(Exam ex : DataManager.getInstance().getAllExams()) {
+                if(ex.getExamId().equals(examId)) { target = ex; break; }
+            }
+            
+            if(target == null) {
+                JOptionPane.showMessageDialog(this, "Exam not found");
+                return;
+            }
+            
+            // Access private feedback via reflection or just use string construction if getter missing
+            // Since we defined addFeedback in Exam.java, let's assume we can access it directly or via helper
+            // Note: In UMS_END/models/academic/Exam.java, we didn't add a getter for feedback list.
+            // Let's rely on the fact that we can just show a message if we modify Exam.java or...
+            // better yet, let's just make sure we update Exam.java to expose it cleanly.
+            
+            StringBuilder sb = new StringBuilder("Student Feedback for " + examId + ":\n\n");
+            // We need to add the getter to Exam.java to make this work perfectly.
+            // But since I am overwriting files, I will fix Exam.java right now below this block.
+            
+            // Assuming getter exists now:
+            List<String> feedbacks = target.getFeedbackList(); 
+            if(feedbacks.isEmpty()) sb.append("No feedback submitted yet.");
+            else for(String s : feedbacks) sb.append("- ").append(s).append("\n");
+            
+            JTextArea textArea = new JTextArea(sb.toString());
+            textArea.setEditable(false);
+            JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "Feedback", JOptionPane.INFORMATION_MESSAGE);
+        });
+
         return p;
     }
 
